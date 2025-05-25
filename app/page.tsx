@@ -68,8 +68,9 @@ export default function Home() {
       <main className="w-full max-w-5xl flex flex-col md:flex-row gap-8 flex-1">
         {/* Anime List Section */}
         <section className="flex-1 bg-white rounded-lg shadow p-4 min-h-[300px]">
-          <h2 className="text-xl font-semibold mb-4 text-black">番剧列表</h2>
-          {loading ? (
+          <h2 className="text-xl font-semibold mb-4 text-black sticky top-0 bg-white z-10 py-2">番剧列表</h2>
+          <div className="pt-2">
+            {loading ? (
             <div className="text-gray-800 text-center py-12">加载中...</div>
           ) : error ? (
             <div className="text-red-600 text-center py-12 flex flex-col items-center gap-4">
@@ -97,7 +98,7 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-6">
               {Object.keys(animeData)
                 .sort((a, b) => b.localeCompare(a))
                 .map((ym) => (
@@ -123,13 +124,14 @@ export default function Home() {
                 ))}
             </div>
           )}
+          </div>
         </section>
 
         {/* Selected Section */}
-        <aside className="w-full md:w-80 bg-white rounded-lg shadow p-4 h-fit">
-          <h2 className="text-xl font-semibold mb-4 text-black">已选番剧</h2>
+        <aside className="w-full md:w-80 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3 md:sticky md:top-8 h-[160px]">
+          <h2 className="text-xl font-semibold mb-2 text-black">已选番剧</h2>
           {selected.length === 0 ? (
-            <div className="text-gray-800 text-center py-8">尚未选择</div>
+            <div className="text-gray-800 text-center py-2">尚未选择</div>
           ) : (
             <ul className="flex flex-col gap-3">
               {selected.map((anime) => (
@@ -155,7 +157,7 @@ export default function Home() {
       {showConfirm && selected.length === 2 && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 w-[90vw] max-w-md">
-            <div className="mb-4 text-lg font-semibold text-center">
+            <div className="mb-4 text-lg font-semibold text-center text-black">
               您是否确认提交“{selected[0].series_name}”与“{selected[1].series_name}”作为喜欢的番剧用以推荐更多类似的？
             </div>
             <div className="flex justify-center gap-6 mt-6">
