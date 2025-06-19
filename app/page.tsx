@@ -181,9 +181,9 @@ export default function Home() {
                       `These are the two acg episodes that I have submitted to you:\n` +
                       `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
                       `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
-                      `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else.`;
+                      `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
                     const system_prompt =
-                      "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons.";
+                      "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
                     // 3. Print curl command and API response
                     const curl = `curl -X POST "http://localhost:{port}/api/chat" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "prompt": ${JSON.stringify(prompt)},\n    "system_prompt": ${JSON.stringify(system_prompt)},\n    "llm": "gemini",\n    "access_token": "YOUR_SERVER_ACCESS_TOKEN"\n  }'`;
                     // eslint-disable-next-line no-console
