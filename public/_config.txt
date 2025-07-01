@@ -1,0 +1,2 @@
+url: ws://xxx
+token: xxx

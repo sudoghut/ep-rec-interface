@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import yaml from "yaml";
 
 type Anime = { id: number; series_name: string };
 type AnimeData = Record<string, Anime[]>;
@@ -53,6 +55,146 @@ export default function Home() {
       setShowConfirm(true);
     }
   }, [selected]);
+
+  // --- WebSocket state and logic ---
+  const [wsState, setWsState] = useState<"idle" | "connecting" | "queued" | "processing" | "done" | "error">("idle");
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [queueTotalAhead, setQueueTotalAhead] = useState<number | null>(null);
+  const [queueElapsed, setQueueElapsed] = useState<number>(0);
+  const [queueEstimate, setQueueEstimate] = useState<string>("estimating");
+  const [wsResult, setWsResult] = useState<string | null>(null);
+  const [wsError, setWsError] = useState<string | null>(null);
+
+  // Keep ws and queueStartTime in refs to persist across renders
+  const wsRef = React.useRef<WebSocket | null>(null);
+  const queueStartTimeRef = React.useRef<number | null>(null);
+
+  // Timer for queue elapsed time
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (wsState === "queued" && queueStartTimeRef.current) {
+      timer = setInterval(() => {
+        setQueueElapsed(Math.floor((Date.now() - (queueStartTimeRef.current || 0)) / 1000));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [wsState]);
+
+  // Function to handle WebSocket connection and recommendation process
+  const handleWebSocketConnection = async (prompt: string, system_prompt: string) => {
+    setWsState("connecting");
+    setWsError(null);
+    setWsResult(null);
+
+    // Fetch config.yaml
+    let config: any = {};
+    try {
+      const res = await fetch("/config.yaml");
+      if (!res.ok) throw new Error("配置文件读取失败");
+      const configText = await res.text();
+      config = yaml.parse(configText);
+    } catch (e) {
+      setWsError("配置文件读取失败");
+      setWsState("error");
+      return;
+    }
+    const wsUrl = config.url;
+    const accessToken = config.token;
+
+    // Open WebSocket
+    try {
+      wsRef.current = new WebSocket(wsUrl);
+    } catch (e) {
+      setWsError("WebSocket 连接失败");
+      setWsState("error");
+      return;
+    }
+
+    wsRef.current.onopen = () => {
+      queueStartTimeRef.current = Date.now();
+      setQueueElapsed(0);
+      setQueueEstimate("estimating");
+      setWsState("queued");
+      wsRef.current!.send(
+        JSON.stringify({
+          parameters: {
+            prompt,
+            system_prompt,
+            llm: "gemini",
+            access_token: accessToken,
+          },
+        })
+      );
+    };
+
+    let lastPosition: number | null = null;
+    let lastTime: number | null = null;
+
+    wsRef.current.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.type === "queue_position") {
+          setQueuePosition(msg.position);
+          setQueueTotalAhead(msg.total_ahead);
+          setWsState("queued");
+          if (lastPosition !== null && lastTime !== null && msg.position < lastPosition) {
+            const now = Date.now();
+            const elapsed = (now - lastTime) / 1000;
+            const positionsPassed = lastPosition - msg.position;
+            const est = Math.round(msg.position * (elapsed / positionsPassed));
+            setQueueEstimate(`${est} 秒`);
+            lastPosition = msg.position;
+            lastTime = now;
+          } else if (lastPosition === null) {
+            lastPosition = msg.position;
+            lastTime = Date.now();
+          }
+        } else if (msg.type === "processing") {
+          setWsState("processing");
+        } else if (msg.type === "result" && msg.data && msg.data.Ok) {
+          setWsState("done");
+          setWsResult(msg.data.Ok.content);
+          wsRef.current?.close();
+        } else if (msg.type === "error" || msg.type === "queue_full") {
+          setWsError(msg.message || "未知错误");
+          setWsState("error");
+          wsRef.current?.close();
+        }
+      } catch (e) {
+        setWsError("消息解析失败");
+        setWsState("error");
+        wsRef.current?.close();
+      }
+    };
+
+    wsRef.current.onerror = () => {
+      setWsError("WebSocket 连接错误");
+      setWsState("error");
+    };
+
+    wsRef.current.onclose = () => {
+      if (wsState !== "done" && wsState !== "error") {
+        setWsError("WebSocket 连接关闭");
+        setWsState("error");
+      }
+    };
+  };
+
+  // Cleanup WebSocket when dialog is closed
+  useEffect(() => {
+    if (!showConfirm) {
+      wsRef.current?.close();
+      wsRef.current = null;
+      queueStartTimeRef.current = null;
+      setQueueElapsed(0);
+      setQueueEstimate("estimating");
+      setQueuePosition(null);
+      setQueueTotalAhead(null);
+      setWsResult(null);
+      setWsError(null);
+      setWsState("idle");
+    }
+  }, [showConfirm]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 sm:p-8">
@@ -160,58 +302,88 @@ export default function Home() {
             <div className="mb-4 text-lg font-semibold text-center text-black">
               您是否确认提交“{selected[0].series_name}”与“{selected[1].series_name}”作为喜欢的番剧用以推荐更多类似的？
             </div>
-            <div className="flex justify-center gap-6 mt-6">
-              <button
-                className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
-                disabled={submitting}
-                onClick={async () => {
-                  setSubmitting(true);
-                  try {
-                    // 1. POST to API
-                    const res = await fetch("/api/get_content_by_series_id", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ id_list: [selected[0].id, selected[1].id] }),
-                    });
-                    const apiData = await res.json();
-                    if (apiData.error) throw new Error(apiData.error);
-                    // 2. Build prompt
-                    const titles = Object.keys(apiData);
-                    const prompt =
-                      `These are the two acg episodes that I have submitted to you:\n` +
-                      `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
-                      `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
-                      `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
-                    const system_prompt =
-                      "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
-                    // 3. Print curl command and API response
-                    const curl = `curl -X POST "http://localhost:{port}/api/chat" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "prompt": ${JSON.stringify(prompt)},\n    "system_prompt": ${JSON.stringify(system_prompt)},\n    "llm": "gemini",\n    "access_token": "YOUR_SERVER_ACCESS_TOKEN"\n  }'`;
-                    // eslint-disable-next-line no-console
-                    console.log("API Response:", apiData);
-                    // eslint-disable-next-line no-console
-                    console.log("Test curl command:\n", curl);
-                  } catch (e) {
-                    // eslint-disable-next-line no-console
-                    console.error("提交失败", e);
-                  } finally {
-                    setSubmitting(false);
+            <div className="flex flex-col gap-4 mt-6">
+              <div className="flex justify-center gap-6">
+                <button
+                  className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
+                  disabled={submitting}
+                  onClick={async () => {
+                    setSubmitting(true);
+                    try {
+                      // 1. POST to API
+                      const res = await fetch("/api/get_content_by_series_id", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ id_list: [selected[0].id, selected[1].id] }),
+                      });
+                      const apiData = await res.json();
+                      if (apiData.error) throw new Error(apiData.error);
+                      
+                      // 2. Build prompt
+                      const titles = Object.keys(apiData);
+                      const prompt =
+                        `These are the two acg episodes that I have submitted to you:\n` +
+                        `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
+                        `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
+                        `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
+                      const system_prompt =
+                        "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
+                      
+                      // 3. Start WebSocket connection
+                      await handleWebSocketConnection(prompt, system_prompt);
+                    } catch (e: any) {
+                      // eslint-disable-next-line no-console
+                      console.error("提交失败", e);
+                      setWsError("获取推荐内容失败: " + (e?.message || e));
+                      setWsState("error");
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}
+                >
+                  确认
+                </button>
+                <button
+                  className="bg-gray-200 text-gray-700 px-5 py-2 rounded hover:bg-gray-300"
+                  disabled={submitting}
+                  onClick={() => {
+                    // Keep first selection, clear second
+                    setSelected((prev) => (prev.length > 0 ? [prev[0]] : []));
                     setShowConfirm(false);
-                  }
-                }}
-              >
-                确认
-              </button>
-              <button
-                className="bg-gray-200 text-gray-700 px-5 py-2 rounded hover:bg-gray-300"
-                disabled={submitting}
-                onClick={() => {
-                  // Keep first selection, clear second
-                  setSelected((prev) => (prev.length > 0 ? [prev[0]] : []));
-                  setShowConfirm(false);
-                }}
-              >
-                取消
-              </button>
+                    // Reset WebSocket state when canceling
+                    setWsState("idle");
+                    setWsError(null);
+                    setWsResult(null);
+                  }}
+                >
+                  取消
+                </button>
+              </div>
+              {/* WebSocket UI feedback */}
+              {wsState === "connecting" && (
+                <div className="text-blue-600 text-center">正在连接服务器...</div>
+              )}
+              {wsState === "queued" && (
+                <div className="text-yellow-700 text-center">
+                  排队中... 当前位置：{queuePosition ?? "?"}，已等待 {queueElapsed} 秒
+                  <br />
+                  预计剩余时间：{queueEstimate}
+                </div>
+              )}
+              {wsState === "processing" && (
+                <div className="text-blue-700 text-center">正在处理您的请求...</div>
+              )}
+              {wsState === "done" && wsResult && (
+                <div className="mt-4 p-3 bg-green-50 rounded">
+                  <div className="font-semibold text-green-800 mb-2">推荐结果：</div>
+                  <ReactMarkdown>{wsResult.replace(/\\n/g, "\n")}</ReactMarkdown>
+                </div>
+              )}
+              {wsState === "error" && wsError && (
+                <div className="mt-4 p-3 bg-red-50 rounded text-red-700">
+                  错误：{wsError}
+                </div>
+              )}
             </div>
           </div>
         </div>

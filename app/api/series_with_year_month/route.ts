@@ -12,6 +12,7 @@ export async function GET() {
     const data = await res.json();
     return NextResponse.json(data);
   } catch (e) {
-    return NextResponse.json({ error: "Proxy fetch failed" }, { status: 500 });
+    console.error("Proxy fetch failed:", e);
+    return NextResponse.json({ error: "Proxy fetch failed", detail: String(e) }, { status: 500 });
   }
 }
