@@ -86,8 +86,8 @@ export default function Home() {
     setWsError(null);
     setWsResult(null);
 
-    // Get first 300 characters of prompt
-    prompt = prompt.slice(0, 300);
+    // // Get first 300 characters of prompt
+    // prompt = prompt.slice(0, 300);
 
     // Fetch config.yaml
     let config: any = {};
@@ -112,6 +112,9 @@ export default function Home() {
       setWsState("error");
       return;
     }
+
+    // Track if we've completed successfully to avoid error on close
+    let hasCompleted = false;
 
     wsRef.current.onopen = () => {
       queueStartTimeRef.current = Date.now();
@@ -155,15 +158,18 @@ export default function Home() {
         } else if (msg.type === "processing") {
           setWsState("processing");
         } else if (msg.type === "result" && msg.data && msg.data.Ok) {
+          hasCompleted = true;
           setWsState("done");
           setWsResult(msg.data.Ok.content);
           wsRef.current?.close();
         } else if (msg.type === "error" || msg.type === "queue_full") {
+          hasCompleted = true;
           setWsError(msg.message || "未知错误");
           setWsState("error");
           wsRef.current?.close();
         }
       } catch (e) {
+        hasCompleted = true;
         setWsError("消息解析失败");
         setWsState("error");
         wsRef.current?.close();
@@ -171,12 +177,14 @@ export default function Home() {
     };
 
     wsRef.current.onerror = () => {
-      setWsError("WebSocket 连接错误");
-      setWsState("error");
+      if (!hasCompleted) {
+        setWsError("WebSocket 连接错误");
+        setWsState("error");
+      }
     };
 
     wsRef.current.onclose = () => {
-      if (wsState !== "done" && wsState !== "error") {
+      if (!hasCompleted) {
         setWsError("WebSocket 连接关闭");
         setWsState("error");
       }
@@ -378,8 +386,10 @@ export default function Home() {
               )}
               {wsState === "done" && wsResult && (
                 <div className="mt-4 p-3 bg-green-50 rounded">
-                  <div className="font-semibold text-green-800 mb-2">推荐结果：</div>
-                  <ReactMarkdown>{wsResult.replace(/\\n/g, "\n")}</ReactMarkdown>
+                  <div className="font-semibold text-green-900 mb-2">推荐结果：</div>
+                  <div className="text-gray-800">
+                    <ReactMarkdown>{wsResult.replace(/\\n/g, "\n")}</ReactMarkdown>
+                  </div>
                 </div>
               )}
               {wsState === "error" && wsError && (
