@@ -86,6 +86,9 @@ export default function Home() {
     setWsError(null);
     setWsResult(null);
 
+    // Get first 300 characters of prompt
+    prompt = prompt.slice(0, 300);
+
     // Fetch config.yaml
     let config: any = {};
     try {
