@@ -131,6 +131,7 @@ export default function Home() {
       setWsState("queued");
       wsRef.current!.send(
         JSON.stringify({
+          type: "request",
           parameters: {
             prompt,
             system_prompt,
@@ -271,6 +272,10 @@ export default function Home() {
   // Cleanup WebSocket when dialog is closed
   useEffect(() => {
     if (!showConfirm) {
+      // Send cancel message before closing WebSocket to ensure user is removed from queue
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: "cancel" }));
+      }
       wsRef.current?.close();
       wsRef.current = null;
       queueStartTimeRef.current = null;
