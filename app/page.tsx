@@ -62,6 +62,14 @@ export default function Home() {
   const [queueTotalAhead, setQueueTotalAhead] = useState<number | null>(null);
   const [queueElapsed, setQueueElapsed] = useState<number>(0);
   const [queueEstimate, setQueueEstimate] = useState<string>("estimating");
+  // --- Estimate time logic state ---
+  const [queueHistory, setQueueHistory] = useState<{ position: number; time: number }[]>([]);
+  const queueHistoryRef = React.useRef<{ position: number; time: number }[]>([]);
+  const lastQueuePosRef = React.useRef<number | null>(null);
+  const [avgPerQueue, setAvgPerQueue] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = React.useRef<NodeJS.Timeout | null>(null);
+
   const [wsResult, setWsResult] = useState<string | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
 
@@ -143,18 +151,55 @@ export default function Home() {
           setQueuePosition(msg.position);
           setQueueTotalAhead(msg.total_ahead);
           setWsState("queued");
-          if (lastPosition !== null && lastTime !== null && msg.position < lastPosition) {
-            const now = Date.now();
-            const elapsed = (now - lastTime) / 1000;
-            const positionsPassed = lastPosition - msg.position;
-            const est = Math.round(msg.position * (elapsed / positionsPassed));
-            setQueueEstimate(`${est} 秒`);
-            lastPosition = msg.position;
-            lastTime = now;
-          } else if (lastPosition === null) {
-            lastPosition = msg.position;
-            lastTime = Date.now();
+
+          // Only update estimate/countdown if position decreases (new -1 event)
+          if (lastQueuePosRef.current === null) {
+            lastQueuePosRef.current = msg.position;
           }
+          const lastQueuePos = lastQueuePosRef.current;
+
+          if (
+            typeof msg.position === "number" &&
+            (queueHistoryRef.current.length === 0 || msg.position < queueHistoryRef.current[queueHistoryRef.current.length - 1].position)
+          ) {
+            setQueueHistory(prev => {
+              const updated = [...prev, { position: msg.position, time: Date.now() }];
+              queueHistoryRef.current = updated;
+              return updated;
+            });
+
+            // Estimate logic using latest queueHistoryRef
+            const history = [...queueHistoryRef.current, { position: msg.position, time: Date.now() }];
+            if (history.length >= 2) {
+              let totalTime = 0;
+              let totalPositions = 0;
+              for (let i = 1; i < history.length; ++i) {
+                const dt = (history[i].time - history[i - 1].time) / 1000;
+                const dp = history[i - 1].position - history[i].position;
+                if (dp > 0) {
+                  totalTime += dt;
+                  totalPositions += dp;
+                }
+              }
+              if (totalPositions > 0) {
+                const avg = totalTime / totalPositions;
+                setAvgPerQueue(avg);
+                const est = Math.round(msg.position * avg);
+                setCountdown(est);
+                setQueueEstimate(`${est} 秒`);
+              }
+            } else {
+              setCountdown(null);
+              setQueueEstimate("estimating...");
+            }
+          } else if (
+            typeof msg.position === "number" &&
+            msg.position === lastQueuePos
+          ) {
+            // Do not reset countdown/estimate if position didn't decrease
+            // Just keep current countdown running
+          }
+          lastQueuePosRef.current = msg.position;
         } else if (msg.type === "processing") {
           setWsState("processing");
         } else if (msg.type === "result" && msg.data && msg.data.Ok) {
@@ -196,6 +241,33 @@ export default function Home() {
     };
   };
 
+  // Countdown for estimate time
+  useEffect(() => {
+    if (countdown !== null && countdown > 0) {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      countdownRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev !== null && prev > 0) {
+            if (prev === 1) {
+              setQueueEstimate("estimating...");
+              clearInterval(countdownRef.current!);
+              countdownRef.current = null;
+              return null;
+            }
+            return prev - 1;
+          }
+          return prev;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
+    };
+  }, [countdown]);
+
   // Cleanup WebSocket when dialog is closed
   useEffect(() => {
     if (!showConfirm) {
@@ -209,6 +281,13 @@ export default function Home() {
       setWsResult(null);
       setWsError(null);
       setWsState("idle");
+      setQueueHistory([]);
+      setAvgPerQueue(null);
+      setCountdown(null);
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current);
+        countdownRef.current = null;
+      }
     }
   }, [showConfirm]);
 
@@ -402,7 +481,7 @@ export default function Home() {
                 <div className="text-yellow-700 text-center">
                   排队中... 当前位置：{queuePosition ?? "?"}，已等待 {queueElapsed} 秒
                   <br />
-                  预计剩余时间：{queueEstimate}
+                  预计剩余时间：{countdown !== null ? `${countdown} 秒` : queueEstimate}
                 </div>
               )}
               {wsState === "processing" && (
