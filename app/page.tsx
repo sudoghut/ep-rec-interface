@@ -162,6 +162,11 @@ export default function Home() {
           setWsState("done");
           setWsResult(msg.data.Ok.content);
           wsRef.current?.close();
+        } else if (msg.type === "ip_restricted") {
+          hasCompleted = true;
+          setWsError("您的IP地址已有请求在处理中，请等待完成后再试");
+          setWsState("error");
+          wsRef.current?.close();
         } else if (msg.type === "error" || msg.type === "queue_full") {
           hasCompleted = true;
           setWsError(msg.message || "未知错误");
