@@ -396,7 +396,7 @@ export default function Home() {
       {/* Confirmation Dialog */}
       {showConfirm && selected.length === 2 && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-[90vw] max-w-md">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-[90vw] max-w-xl">
             <div className="mb-4 text-lg font-semibold text-center text-black">
               您是否确认提交“{selected[0].series_name}”与“{selected[1].series_name}”作为喜欢的番剧用以推荐更多类似的？
             </div>
@@ -419,60 +419,70 @@ export default function Home() {
                 ) : (
                   // Show confirm and cancel buttons when waiting for user input
                   <>
-                    <button
-                      className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
-                      disabled={submitting}
-                      onClick={async () => {
-                        setSubmitting(true);
-                        try {
-                          // 1. POST to API
-                          const res = await fetch("/api/get_content_by_series_id", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ id_list: [selected[0].id, selected[1].id] }),
-                          });
-                          const apiData = await res.json();
-                          if (apiData.error) throw new Error(apiData.error);
-                          
-                          // 2. Build prompt
-                          const titles = Object.keys(apiData);
-                          const prompt =
-                            `These are the two acg episodes that I have submitted to you:\n` +
-                            `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
-                            `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
-                            `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
-                          const system_prompt =
-                            "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
-                          
-                          // 3. Start WebSocket connection
-                          await handleWebSocketConnection(prompt, system_prompt);
-                        } catch (e: any) {
-                          // eslint-disable-next-line no-console
-                          console.error("提交失败", e);
-                          setWsError("获取推荐内容失败: " + (e?.message || e));
-                          setWsState("error");
-                        } finally {
-                          setSubmitting(false);
-                        }
-                      }}
-                    >
-                      确认
-                    </button>
-                    <button
-                      className="bg-gray-200 text-gray-700 px-5 py-2 rounded hover:bg-gray-300"
-                      disabled={submitting}
-                      onClick={() => {
-                        // Keep first selection, clear second
-                        setSelected((prev) => (prev.length > 0 ? [prev[0]] : []));
-                        setShowConfirm(false);
-                        // Reset WebSocket state when canceling
-                        setWsState("idle");
-                        setWsError(null);
-                        setWsResult(null);
-                      }}
-                    >
-                      取消
-                    </button>
+<button
+  className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 disabled:opacity-60"
+  disabled={
+    submitting ||
+    wsState === "connecting" ||
+    wsState === "queued" ||
+    wsState === "processing"
+  }
+  onClick={async () => {
+    setSubmitting(true);
+    try {
+      // 1. POST to API
+      const res = await fetch("/api/get_content_by_series_id", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_list: [selected[0].id, selected[1].id] }),
+      });
+      const apiData = await res.json();
+      if (apiData.error) throw new Error(apiData.error);
+      
+      // 2. Build prompt
+      const titles = Object.keys(apiData);
+      const prompt =
+        `These are the two acg episodes that I have submitted to you:\n` +
+        `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
+        `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
+        `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
+      const system_prompt =
+        "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
+      
+      // 3. Start WebSocket connection
+      await handleWebSocketConnection(prompt, system_prompt);
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.error("提交失败", e);
+      setWsError("获取推荐内容失败: " + (e?.message || e));
+      setWsState("error");
+    } finally {
+      setSubmitting(false);
+    }
+  }}
+>
+  确认
+</button>
+<button
+  className="bg-gray-200 text-gray-700 px-5 py-2 rounded hover:bg-gray-300"
+  disabled={
+    submitting ||
+    wsState === "connecting" ||
+    wsState === "queued" ||
+    wsState === "processing"
+  }
+  onClick={() => {
+    // Keep first selection, clear second
+    setSelected((prev) => (prev.length > 0 ? [prev[0]] : []));
+    setShowConfirm(false);
+    // Reset WebSocket state when canceling
+    setWsState("idle");
+    setWsError(null);
+    setWsResult(null);
+  }}
+>
+  取消
+</button>
                   </>
                 )}
               </div>
