@@ -289,7 +289,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 sm:p-8">
       {/* Header */}
       <header className="w-full max-w-3xl mb-6 text-center">
-        <h1 className="text-3xl font-bold mb-2 tracking-tight text-black">探寻</h1>
+        <h1 className="text-3xl font-bold mb-2 tracking-tight text-black">友声</h1>
         <p className="text-gray-900 text-base sm:text-lg">
           请在当前网页中选择两部您喜欢的番，系统会基于大语言模型推荐您可能喜欢的其他番。
         </p>
