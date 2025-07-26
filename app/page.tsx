@@ -436,9 +436,9 @@ export default function Home() {
         `These are the two acg episodes that I have submitted to you:\n` +
         `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
         `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
-        `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
+        `Base on these episodes, recommend me more acg episodes for me and give me detailed resons. Your respond will be in Chinese(中文). Do not recommend any episode titles that the user has submitted. Please just generate the respond. Don't generate anything else, but your recommendations and reasons.`;
       const system_prompt =
-        "You are an expert to recommend acg episodes for users. The user will give you two episode titles with the abstract. Please use Chinese(中文) to give me detailed recommendations and reasons. Don't generate anything else, but your recommendations and reasons.";
+        "You are an expert at recommending ACG episodes for users. The user will give you two episode titles with their abstracts. Please use Chinese (中文) to give me detailed recommendations and reasons. Do not recommend any episode titles that the user has submitted. Do not generate anything else besides your recommendations and reasons.";
       
       // 3. Start WebSocket connection
       await handleWebSocketConnection(prompt, system_prompt);
