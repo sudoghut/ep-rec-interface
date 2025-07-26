@@ -101,7 +101,7 @@ export default function Home() {
       const configText = await res.text();
       config = yaml.parse(configText);
     } catch (_e) {
-      setWsError("配置文件读取失败");
+      setWsError("配置文件读取失败: " + String(_e));
       setWsState("error");
       return;
     }
@@ -115,7 +115,7 @@ export default function Home() {
     try {
       wsRef.current = new WebSocket(wsUrl);
     } catch (_e) {
-      setWsError("WebSocket 连接失败");
+      setWsError("WebSocket 连接失败: " + String(_e));
       setWsState("error");
       return;
     }
@@ -212,7 +212,7 @@ export default function Home() {
         }
     } catch (_e) {
       hasCompleted = true;
-      setWsError("消息解析失败");
+      setWsError("消息解析失败: " + String(_e));
       setWsState("error");
       wsRef.current?.close();
     }
@@ -442,9 +442,9 @@ export default function Home() {
       
       // 3. Start WebSocket connection
       await handleWebSocketConnection(prompt, system_prompt);
-    } catch (e: unknown) {
-      console.error("提交失败", e);
-      setWsError("获取推荐内容失败: " + ((e as Error)?.message || String(e)));
+    } catch (_e: unknown) {
+      console.error("提交失败", _e);
+      setWsError("获取推荐内容失败: " + ((_e as Error)?.message || String(_e)));
       setWsState("error");
     } finally {
       setSubmitting(false);

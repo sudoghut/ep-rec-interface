@@ -14,6 +14,6 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     return NextResponse.json(data);
   } catch (_e) {
-    return NextResponse.json({ error: "Proxy fetch failed" }, { status: 500 });
+    return NextResponse.json({ error: "Proxy fetch failed", detail: String(_e) }, { status: 500 });
   }
 }
