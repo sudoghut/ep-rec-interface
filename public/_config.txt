@@ -1,2 +1,1 @@
-url: ws://xxx
-token: xxx
+url: ws/wss://xxx

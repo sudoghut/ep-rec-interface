@@ -110,7 +110,6 @@ export default function Home() {
       return;
     }
     const wsUrl = config.url;
-    const accessToken = config.token;
 
     // Open WebSocket
     try {
@@ -136,7 +135,6 @@ export default function Home() {
             prompt,
             system_prompt,
             llm: "gemini",
-            access_token: accessToken,
           },
         })
       );
