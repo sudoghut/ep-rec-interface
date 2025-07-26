@@ -59,14 +59,10 @@ export default function Home() {
   // --- WebSocket state and logic ---
   const [wsState, setWsState] = useState<"idle" | "connecting" | "queued" | "processing" | "done" | "error">("idle");
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
-  const [queueTotalAhead, setQueueTotalAhead] = useState<number | null>(null);
   const [queueElapsed, setQueueElapsed] = useState<number>(0);
   const [queueEstimate, setQueueEstimate] = useState<string>("estimating");
-  // --- Estimate time logic state ---
-  const [queueHistory, setQueueHistory] = useState<{ position: number; time: number }[]>([]);
   const queueHistoryRef = React.useRef<{ position: number; time: number }[]>([]);
   const lastQueuePosRef = React.useRef<number | null>(null);
-  const [avgPerQueue, setAvgPerQueue] = useState<number | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const countdownRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -98,23 +94,27 @@ export default function Home() {
     // prompt = prompt.slice(0, 300);
 
     // Fetch config.yaml
-    let config: any = {};
+    let config: { url?: string } = {};
     try {
       const res = await fetch("/config.yaml");
       if (!res.ok) throw new Error("配置文件读取失败");
       const configText = await res.text();
       config = yaml.parse(configText);
-    } catch (e) {
+    } catch (_e) {
       setWsError("配置文件读取失败");
       setWsState("error");
       return;
     }
     const wsUrl = config.url;
-
+    if (!wsUrl) {
+      setWsError("WebSocket 配置缺失");
+      setWsState("error");
+      return;
+    }
     // Open WebSocket
     try {
       wsRef.current = new WebSocket(wsUrl);
-    } catch (e) {
+    } catch (_e) {
       setWsError("WebSocket 连接失败");
       setWsState("error");
       return;
@@ -140,15 +140,12 @@ export default function Home() {
       );
     };
 
-    let lastPosition: number | null = null;
-    let lastTime: number | null = null;
 
     wsRef.current.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "queue_position") {
           setQueuePosition(msg.position);
-          setQueueTotalAhead(msg.total_ahead);
           setWsState("queued");
 
           // Only update estimate/countdown if position decreases (new -1 event)
@@ -161,11 +158,8 @@ export default function Home() {
             typeof msg.position === "number" &&
             (queueHistoryRef.current.length === 0 || msg.position < queueHistoryRef.current[queueHistoryRef.current.length - 1].position)
           ) {
-            setQueueHistory(prev => {
-              const updated = [...prev, { position: msg.position, time: Date.now() }];
-              queueHistoryRef.current = updated;
-              return updated;
-            });
+            const updated = [...queueHistoryRef.current, { position: msg.position, time: Date.now() }];
+            queueHistoryRef.current = updated;
 
             // Estimate logic using latest queueHistoryRef
             const history = [...queueHistoryRef.current, { position: msg.position, time: Date.now() }];
@@ -182,7 +176,6 @@ export default function Home() {
               }
               if (totalPositions > 0) {
                 const avg = totalTime / totalPositions;
-                setAvgPerQueue(avg);
                 const est = Math.round(msg.position * avg);
                 setCountdown(est);
                 setQueueEstimate(`${est} 秒`);
@@ -217,12 +210,12 @@ export default function Home() {
           setWsState("error");
           wsRef.current?.close();
         }
-      } catch (e) {
-        hasCompleted = true;
-        setWsError("消息解析失败");
-        setWsState("error");
-        wsRef.current?.close();
-      }
+    } catch (_e) {
+      hasCompleted = true;
+      setWsError("消息解析失败");
+      setWsState("error");
+      wsRef.current?.close();
+    }
     };
 
     wsRef.current.onerror = () => {
@@ -280,12 +273,10 @@ export default function Home() {
       setQueueElapsed(0);
       setQueueEstimate("estimating");
       setQueuePosition(null);
-      setQueueTotalAhead(null);
       setWsResult(null);
       setWsError(null);
       setWsState("idle");
-      setQueueHistory([]);
-      setAvgPerQueue(null);
+      queueHistoryRef.current = [];
       setCountdown(null);
       if (countdownRef.current) {
         clearInterval(countdownRef.current);
@@ -451,10 +442,9 @@ export default function Home() {
       
       // 3. Start WebSocket connection
       await handleWebSocketConnection(prompt, system_prompt);
-    } catch (e: any) {
-      // eslint-disable-next-line no-console
+    } catch (e: unknown) {
       console.error("提交失败", e);
-      setWsError("获取推荐内容失败: " + (e?.message || e));
+      setWsError("获取推荐内容失败: " + ((e as Error)?.message || String(e)));
       setWsState("error");
     } finally {
       setSubmitting(false);
