@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import yaml from "yaml";
+import { Analytics } from "@vercel/analytics/next"
 
 type Anime = { id: number; series_name: string };
 type AnimeData = Record<string, Anime[]>;
@@ -287,6 +288,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center p-4 sm:p-8">
+      <Analytics />
       {/* Header */}
       <header className="w-full max-w-3xl mb-6 text-center">
         <h1 className="text-3xl font-bold mb-2 tracking-tight text-black">友声</h1>
