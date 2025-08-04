@@ -136,6 +136,7 @@ export default function Home() {
             prompt,
             system_prompt,
             llm: "gemini",
+            search: 1,
           },
         })
       );
