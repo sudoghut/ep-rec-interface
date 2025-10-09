@@ -439,9 +439,9 @@ export default function Home() {
         `These are the two acg episodes that I have submitted to you:\n` +
         `${titles[0]}: ${apiData[titles[0]].join("\n")}\n` +
         `${titles[1]}: ${apiData[titles[1]].join("\n")}\n` +
-        `Based on the episodes I provide, recommend more ACG episodes for me and give detailed reasons. Your response must be in Chinese (中文). Do not include any of the episode titles I submitted. Only generate recommendations and reasons—nothing else. Do not summarize the episodes I submitted; focus solely on the recommendations and the reasons behind them.`;
+        `Based on the episodes I provide, recommend more ACG episodes for me and give detailed reasons. Your response must be in Chinese (中文)with multiple detailed recommendations and explanations. Each recommendation must highlight the shared themes, elements, or emotional tones present in both submitted episodes, emphasizing their commonalities rather than analyzing each one separately. Do not mention or summarize the submitted episodes; instead, focus solely on new ACG recommendations that reflect the shared characteristics and provide clear reasoning for each choice.`;
       const system_prompt =
-        "You are an expert in recommending ACG episodes. The user will provide two episode titles along with their abstracts. Based on this, use Chinese (中文) to give detailed recommendations and reasons. Do not include any of the episode titles submitted by the user. Do not generate anything other than your recommendations and the reasons behind them. Do not summarize the submitted episodes—focus only on the new recommendations and their rationale.";
+        "You are an expert in recommending ACG episodes. The user will provide two episode titles and their abstracts. Based on these, respond in Chinese (中文) with multiple detailed recommendations and explanations. Each recommendation must highlight the shared themes, elements, or emotional tones present in both submitted episodes, emphasizing their commonalities rather than analyzing each one separately. Do not mention or summarize the submitted episodes; instead, focus solely on new ACG recommendations that reflect the shared characteristics and provide clear reasoning for each choice.";
       
       // 3. Start WebSocket connection
       await handleWebSocketConnection(prompt, system_prompt);
